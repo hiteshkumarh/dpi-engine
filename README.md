@@ -1,27 +1,114 @@
-# DPI Engine - Deep Packet Inspection Analyzer
+# 🛡️ DPI Engine – Deep Packet Inspection Analyzer
 
-A powerful Deep Packet Inspection (DPI) system designed to identify and filter network traffic by parsing the internal payloads of network packets. This engine can intercept TLS Client Hellos to extract Server Name Indications (SNI) and HTTP Host headers without decryption, enabling you to identify and block specific applications (like YouTube, TikTok, Facebook) regardless of encryption.
+A **Deep Packet Inspection (DPI) system** that analyzes network traffic from PCAP files, extracts domains from encrypted TLS connections using **SNI inspection**, and applies **rule-based filtering** to identify and block applications.
 
-This project is fully powered by **Python 3** for core networking logic and **Node.js/Express** for a clean, accessible Web Dashboard.
-
----
-
-## 🚀 Features
-
-- **Raw PCAP Parsing**: Decodes Ethernet, IPv4, TCP, and UDP completely from scratch in Python.
-- **Deep Packet Inspection**:
-  - Extracts SNI from TLS 1.0-1.3 Client Hello messages natively.
-  - Extracts `Host` headers from standard HTTP traffic.
-  - Parses standard DNS requests.
-- **Flow Tracking stateful analysis**: Associates multiple packets with a single unified conversation stream (Five-Tuple tracking).
-- **Rule-Based Filtering**: Block outgoing access dynamically by Application Name, Domain, or Source IP.
-- **Web Interface**: A sleek web UI to upload captures, configure rules, and generate real-time processing reports.
+The project combines a **Python packet analysis engine** with a **Node.js web dashboard** for visualizing network traffic statistics.
 
 ---
 
-## 📦 Project Structure
+# 📌 Overview
+
+Modern applications use **HTTPS (port 443)**, which encrypts traffic and hides application details.
+
+Traditional firewalls only filter by:
+
+* IP Address
+* Port Number
+
+But many applications share the same port:
+
+| Application | Port |
+| ----------- | ---- |
+| YouTube     | 443  |
+| Facebook    | 443  |
+| GitHub      | 443  |
+| Discord     | 443  |
+
+Blocking port **443** would break the entire internet.
+
+This project solves that problem using **Deep Packet Inspection (DPI)** by analyzing metadata inside packets before encryption is fully established. 
+
+---
+
+# ⚙️ Features
+
+* 📦 **Raw PCAP Parsing**
+
+  * Reads packet captures directly using Python.
+
+* 🌐 **Protocol Decoding**
+
+  * Ethernet
+  * IPv4
+  * TCP
+  * UDP
+
+* 🔍 **Deep Packet Inspection**
+
+  * Extract TLS **SNI (Server Name Indication)**
+  * Extract HTTP **Host headers**
+  * Parse DNS queries
+
+* 🧠 **Flow Tracking**
+
+  * Tracks connections using **5-tuple flow identification**
+
+* 🚫 **Rule-Based Filtering**
+
+  * Block by:
+
+    * Domain
+    * Application
+    * IP address
+
+* 📊 **Web Dashboard**
+
+  * Upload PCAP files
+  * Configure filtering rules
+  * View analysis results
+
+---
+
+# 🏗️ System Architecture
 
 ```text
+User (Browser)
+      │
+      ▼
+Node.js Web Dashboard
+      │
+      ▼
+Python DPI Engine
+      │
+      ▼
+Packet Parsing + Application Detection
+```
+
+# project Workflow:
+
+```
+Upload PCAP
+     ↓
+Node.js Server
+     ↓
+Run Python DPI Engine
+     ↓
+Parse Ethernet/IP/TCP/UDP
+     ↓
+Extract TLS SNI / HTTP Host
+     ↓
+Apply Filtering Rules
+     ↓
+Generate Analysis Report
+     ↓
+Display Results in Web Dashboard
+```
+
+---
+
+# 📂 Project Structure
+
+```
 packet_analyzer/
 ├── frontend/                  # Web Interface (Express.js)
 │   ├── public/                # Static UI assets (HTML, CSS, JS)
@@ -45,22 +132,38 @@ packet_analyzer/
 
 ---
 
-## 🛠️ Installation & Setup
+## 🚀 Clone and Run the Project Locally
 
-You will need **Python 3.10+** and **Node.js (LTS)** installed on your machine. Using Windows, macOS, or Linux is fully supported.
+Follow these steps to run the DPI Engine on your machine.
 
-### 1. Clone the Repository
+### 1️⃣ Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/packet_analyzer.git
-cd packet_analyzer
+git clone https://github.com/hiteshkumarh/dpi-engine.git
 ```
 
-*(Note: The Python engine uses only standard libraries, so there is no `requirements.txt` needed!)*
+### 2️⃣ Navigate to the Project Folder
 
-### 2. Install UI Dependencies
+```bash
+cd dpi-engine
+```
 
-Navigate into the frontend directory and install the required Node packages:
+You should see the following structure:
+
+```
+frontend/
+packet_analyzer_py/
+test_dpi.pcap
+generate_test_pcap.py
+```
+
+---
+
+## 🛠️ Install Dependencies
+
+This project uses **Node.js for the dashboard** and **Python for the DPI engine**.
+
+### Install Node.js dependencies
 
 ```bash
 cd frontend
@@ -69,42 +172,233 @@ npm install
 
 ---
 
-## 🖥️ Running the Application
+## ▶️ Run the Web Dashboard (Recommended)
 
-### Option 1: Web Dashboard (Recommended)
-
-1. Start the Node.js API and Web Server:
-   ```bash
-   cd frontend
-   npm start
-   ```
-2. Open your browser to `http://localhost:5000`
-3. Upload a PCAP file (e.g., `test_dpi.pcap` from the root folder).
-4. Select applications to block or pass and view your DPI filtering results instantly.
-
-### Option 2: Command Line Interface (CLI)
-
-You can run the DPI engine manually from the terminal for faster scripting flows:
+Start the backend server:
 
 ```bash
-# Basic Run
-python packet_analyzer_py/main.py test_dpi.pcap output.pcap
-
-# With Blocking Rules
-python packet_analyzer_py/main.py test_dpi.pcap output.pcap \
-    --block-app YouTube \
-    --block-app TikTok \
-    --block-ip 192.168.1.50 \
-    --block-domain facebook
+npm start
 ```
+
+or
+
+```bash
+node server.js
+```
+
+Then open your browser:
+
+```
+http://localhost:5000
+```
+
+Upload a `.pcap` file (example: `test_dpi.pcap`) and apply filtering rules.
 
 ---
 
-## 🧪 Generating Test Data
+## 🖥️ Run the DPI Engine from CLI
 
-If you need a mock `.pcap` capture file to experiment on, use the included Python script:
+You can also run the engine directly without the web dashboard.
+
+Return to the root folder:
+
+```bash
+cd ..
+```
+
+### Basic analysis
+
+```bash
+python packet_analyzer_py/main.py test_dpi.pcap output.pcap
+```
+
+### Run with blocking rules
+
+```bash
+python packet_analyzer_py/main.py test_dpi.pcap output.pcap --block-app YouTube --block-domain facebook
+```
+
+This will analyze the PCAP file and generate a filtered output file.
+
+---
+
+## 🧪 Generate Test PCAP
+
+If you want to generate sample traffic:
 
 ```bash
 python generate_test_pcap.py
 ```
-This generates a realistic network flow containing simulated TLS, HTTP, and DNS traffic routed to standard applications. 
+
+This will create a test `.pcap` file with simulated traffic.
+
+---
+
+# 🛠️ Requirements
+
+Install the following:
+
+* **Python 3.10+**
+* **Node.js (LTS)**
+* **npm**
+
+Check installations:
+
+```
+python --version
+node --version
+npm --version
+```
+
+---
+
+# ⚡ Running the Project Locally
+
+## 1️⃣ Install Node.js Dependencies
+
+```
+cd frontend
+npm install
+```
+
+---
+
+## 2️⃣ Start the Web Server
+
+```
+npm start
+```
+
+or
+
+```
+node server.js
+```
+
+---
+
+## 3️⃣ Open the Web Dashboard
+
+Open your browser and go to:
+
+```
+http://localhost:5000
+```
+
+---
+
+## 4️⃣ Upload a PCAP File
+
+Upload the included test capture:
+
+```
+test_dpi.pcap
+```
+
+Then add filtering rules such as:
+
+```
+youtube
+```
+
+The dashboard will analyze traffic and display statistics.
+
+---
+
+# 🖥️ Running the Engine via CLI
+
+You can run the DPI engine directly using Python.
+
+### Basic Analysis
+
+```
+python packet_analyzer_py/main.py test_dpi.pcap output.pcap
+```
+
+### With Blocking Rules
+
+```
+python packet_analyzer_py/main.py test_dpi.pcap output.pcap \
+    --block-app YouTube \
+    --block-domain facebook \
+    --block-ip 192.168.1.50
+```
+
+---
+
+# 🧪 Generate Test PCAP Traffic
+
+If you want to create sample network traffic:
+
+```
+python generate_test_pcap.py
+```
+
+This script generates a `.pcap` file with simulated TLS, HTTP, and DNS flows.
+
+---
+
+# 📊 Example Output
+
+```
+Total Packets: 77
+Forwarded: 76
+Dropped: 1
+Active Flows: 27
+```
+
+Application Breakdown:
+
+```
+HTTPS      55
+DNS        4
+Twitter/X  3
+HTTP       2
+Google     1
+YouTube    1
+Facebook   1
+```
+
+---
+
+# 🧠 Technologies Used
+
+**Backend**
+
+* Python 3
+* Node.js
+* Express.js
+
+**Networking**
+
+* PCAP Binary Parsing
+* TCP/IP Protocol Analysis
+* TLS Handshake Inspection
+
+**Frontend**
+
+* HTML
+* CSS
+* JavaScript
+
+---
+
+# 📚 Learning Outcomes
+
+This project demonstrates:
+
+* Deep Packet Inspection techniques
+* Network protocol parsing
+* TLS handshake analysis
+* Flow-based traffic tracking
+* Backend and frontend integration
+
+---
+
+# 👨‍💻 Author
+
+**Hithesh Kumar**
+
+
+
+
