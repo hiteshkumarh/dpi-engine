@@ -6,16 +6,13 @@ The project combines a **Python packet analysis engine** with a **Node.js web da
 
 ---
 
-# 📌 Overview
+## 📌 Problem Statement
 
-Modern applications use **HTTPS (port 443)**, which encrypts traffic and hides application details.
+Traditional firewalls mainly operate at **Layer 3 and Layer 4 of the network stack**, filtering traffic based on **IP addresses and port numbers**.
 
-Traditional firewalls only filter by:
+This approach worked well in the past, but modern applications use **HTTPS (TLS encryption)** where many different services share the same port.
 
-* IP Address
-* Port Number
-
-But many applications share the same port:
+Example:
 
 | Application | Port |
 | ----------- | ---- |
@@ -24,9 +21,39 @@ But many applications share the same port:
 | GitHub      | 443  |
 | Discord     | 443  |
 
-Blocking port **443** would break the entire internet.
+If a network administrator blocks **port 443**, it would block almost the entire internet.
 
-This project solves that problem using **Deep Packet Inspection (DPI)** by analyzing metadata inside packets before encryption is fully established. 
+At the same time, blocking based on **IP addresses** is unreliable because large services use **CDNs and cloud infrastructure**, where IP addresses change frequently.
+
+As a result, administrators cannot easily block or analyze specific applications when traffic is encrypted.
+
+---
+
+## 💡 Solution
+
+This project implements a **Deep Packet Inspection (DPI) Engine** that analyzes network traffic beyond basic IP and port filtering.
+
+Instead of decrypting traffic, the engine inspects **metadata present in the early stages of a connection**.
+
+Key techniques used:
+
+* **TLS Client Hello Inspection**
+  Extracts the **Server Name Indication (SNI)** field from TLS handshakes, revealing the requested domain (e.g., `youtube.com`) before encryption is fully established.
+
+* **HTTP Header Parsing**
+  Extracts the `Host` header from unencrypted HTTP traffic.
+
+* **DNS Query Parsing**
+  Identifies requested domains from DNS requests.
+
+Using this information, the system can:
+
+* Identify applications such as **YouTube, Facebook, GitHub, or Discord**
+* Apply **rule-based filtering**
+* Block or allow traffic dynamically
+* Generate traffic analysis reports
+
+The engine is implemented in **Python**, while a **Node.js web dashboard** allows users to upload PCAP files, configure rules, and visualize results easily.
 
 ---
 
