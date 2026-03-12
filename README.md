@@ -1,123 +1,405 @@
 # 🛡️ DPI Engine – Deep Packet Inspection System
 
-A **Deep Packet Inspection (DPI) engine** that analyzes network traffic from **PCAP files**, extracts domains from encrypted TLS connections using **SNI inspection**, and applies **rule-based filtering** to identify and block applications.
+This project implements a **Deep Packet Inspection (DPI) engine** that analyzes network traffic from **PCAP files**, extracts domains from encrypted TLS connections using **SNI inspection**, and applies **rule-based filtering** to identify and block applications.
 
 The system consists of:
 
-* **Python DPI Engine** → performs packet parsing and traffic inspection
-* **Node.js Web Dashboard** → provides a UI to upload PCAP files and visualize analysis results
+* **Python DPI Engine** – performs packet parsing and traffic inspection
+* **Node.js Web Dashboard** – provides a UI to upload PCAP files and visualize analysis results
 
-This project demonstrates how encrypted traffic can still be classified by inspecting **metadata in the TLS handshake**.
+The project includes **architecture diagrams and packet flow diagrams** to explain how packets move through the DPI pipeline and how TLS metadata is extracted.
 
----
+These diagrams help understand:
 
-# 📌 Problem Statement
-
-Traditional firewalls operate mainly at:
-
-* **Layer 3 – Network Layer (IP filtering)**
-* **Layer 4 – Transport Layer (Port filtering)**
-
-However modern applications often use **HTTPS (TLS encryption)** and share the same port.
-
-Example:
-
-| Application | Port |
-| ----------- | ---- |
-| YouTube     | 443  |
-| Facebook    | 443  |
-| GitHub      | 443  |
-| Discord     | 443  |
-
-If a network administrator blocks **port 443**, almost the entire internet would be blocked.
-
-At the same time, blocking based on **IP addresses** is unreliable because large services use **CDNs and cloud infrastructure**, where IP addresses frequently change.
-
-Therefore, it becomes difficult to **identify or control specific applications** using traditional firewall rules.
+* Network packet structure
+* Packet processing pipeline
+* DPI architecture
+* TLS handshake and SNI extraction
 
 ---
 
-# 💡 Solution
+# 📑 Table of Contents
 
-This project implements a **Deep Packet Inspection engine** that inspects **metadata inside packets** rather than relying only on IP and port filtering.
+1. What is DPI?
+2. Networking Background
+3. Project Overview
+4. File Structure
+5. The Journey of a Packet (Simple Version)
+6. The Journey of a Packet (Multi-threaded Version)
+7. Deep Dive: Each Component
+8. How SNI Extraction Works
+9. How Blocking Works
+10. System Architecture Diagram
+11. Packet Flow Diagram
+12. Building and Running
+13. Understanding the Output
 
-The system analyzes early parts of network communication such as:
+---
 
-* TLS ClientHello messages
-* HTTP headers
-* DNS queries
+# 1️⃣ What is DPI?
 
-The key idea is that even though HTTPS encrypts the payload, the **Server Name Indication (SNI)** inside the TLS handshake is **visible in plaintext**.
+**Deep Packet Inspection (DPI)** is a technology used to analyze the **contents of network packets** as they pass through a monitoring system.
 
-Example TLS handshake:
+Unlike traditional firewalls that only inspect **IP addresses and ports**, DPI examines **packet payload data** to determine the actual application being used.
+
+### Real-World Uses
+
+| Use Case          | Example                                |
+| ----------------- | -------------------------------------- |
+| ISPs              | Throttle or block BitTorrent traffic   |
+| Enterprises       | Block social media during office hours |
+| Parental Controls | Filter inappropriate websites          |
+| Security Systems  | Detect malware or suspicious traffic   |
+
+### What Our DPI Engine Does
 
 ```
-ClientHello
- └── SNI: www.youtube.com
+User Traffic (PCAP)
+        │
+        ▼
+     DPI Engine
+        │
+ ┌───────────────┐
+ │ Packet Parsing │
+ │ SNI Extraction │
+ │ App Detection  │
+ │ Rule Filtering │
+ └───────────────┘
+        │
+        ▼
+Filtered Traffic + Analysis Report
 ```
-
-Using this information the DPI engine can:
-
-* Identify the application being accessed
-* Apply rule-based filtering
-* Block specific domains or apps
-* Generate network traffic reports
 
 ---
 
-# ⚙️ Features
+# 2️⃣ Networking Background
 
-### 📦 PCAP Packet Parsing
+To understand DPI, it's important to understand how **network packets are structured**.
 
-Reads packet captures directly from `.pcap` files using Python binary parsing.
+The following diagram illustrates the **network protocol stack** used when data travels across the internet.
 
-### 🌐 Protocol Decoding
+```
+┌─────────────────────────────────────────────┐
+│ Layer 7: Application   │ HTTP, TLS, DNS     │
+├─────────────────────────────────────────────┤
+│ Layer 4: Transport     │ TCP, UDP           │
+├─────────────────────────────────────────────┤
+│ Layer 3: Network       │ IP                 │
+├─────────────────────────────────────────────┤
+│ Layer 2: Data Link     │ Ethernet           │
+└─────────────────────────────────────────────┘
+```
 
-Supports parsing of:
+---
+
+# Packet Structure Diagram
+
+Each network packet contains **multiple nested protocol headers**.
+
+```
+┌──────────────────────────────────────────────┐
+│ Ethernet Header                              │
+│ ┌──────────────────────────────────────────┐ │
+│ │ IP Header                                │ │
+│ │ ┌──────────────────────────────────────┐ │ │
+│ │ │ TCP Header                           │ │ │
+│ │ │ ┌──────────────────────────────────┐ │ │ │
+│ │ │ │ Application Payload              │ │ │ │
+│ │ │ │ (TLS ClientHello / HTTP Data)    │ │ │ │
+│ │ │ └──────────────────────────────────┘ │ │ │
+│ │ └──────────────────────────────────────┘ │ │
+│ └──────────────────────────────────────────┘ │
+└──────────────────────────────────────────────┘
+```
+
+---
+
+# 3️⃣ Project Overview
+
+The DPI system processes captured network packets and extracts application information.
+
+```
+PCAP Capture
+      │
+      ▼
+Node.js Web Dashboard
+(upload + API layer)
+      │
+      ▼
+Python DPI Engine
+(packet parsing + inspection)
+      │
+      ▼
+Traffic Classification
+(SNI extraction + rules)
+      │
+      ▼
+Traffic Report + Dashboard Visualization
+```
+
+---
+
+# 4️⃣ File Structure
+
+```
+packet_analyzer/
+
+├── frontend/                  # Node.js Web Dashboard
+│   ├── public/
+│   ├── uploads/
+│   ├── server.js
+│   └── package.json
+│
+├── packet_analyzer_py/        # Python DPI Engine
+│   ├── core/
+│   │   ├── packet_parser.py
+│   │   ├── pcap_reader.py
+│   │   ├── rule_manager.py
+│   │   ├── sni_extractor.py
+│   │   └── types.py
+│   │
+│   └── main.py
+│
+├── test_dpi.pcap
+├── generate_test_pcap.py
+└── README.md
+```
+
+---
+
+# The Journey of a Packet (Simple Version)
+
+In the **single-threaded version**, packets are processed sequentially.
+
+```
+PCAP Reader
+     │
+     ▼
+Packet Parser
+     │
+     ▼
+Flow Tracking (Five-Tuple)
+     │
+     ▼
+SNI / HTTP Host Extraction
+     │
+     ▼
+Application Classification
+     │
+     ▼
+Rule Engine
+     │
+     ▼
+Forward Packet or Drop Packet
+```
+
+### Step 1 – Read Packet From PCAP
+
+```
+Global Header
+Packet Header
+Packet Data
+```
+
+Each packet contains:
+
+* timestamp
+* captured length
+* raw packet bytes
+
+---
+
+### Step 2 – Parse Protocol Headers
+
+```
+Ethernet → IP → TCP / UDP → Payload
+```
+
+Extracted fields:
+
+* Source IP
+* Destination IP
+* Source Port
+* Destination Port
+* Protocol
+
+---
+
+### Step 3 – Create Flow Identifier
+
+```
+(Source IP, Destination IP, Source Port, Destination Port, Protocol)
+```
+
+Example flow:
+
+```
+192.168.1.10:54321 → 142.250.185.206:443
+```
+
+---
+
+### Step 4 – Extract Domain Information
+
+```
+TLS SNI      → www.youtube.com
+HTTP Host    → github.com
+DNS Query    → google.com
+```
+
+---
+
+### Step 5 – Classify Application
+
+```
+youtube.com  → YouTube
+facebook.com → Facebook
+github.com   → GitHub
+```
+
+---
+
+### Step 6 – Apply Filtering Rules
+
+Traffic can be blocked using:
+
+* IP address
+* application type
+* domain name
+
+```
+Allowed → forward packet
+Blocked → drop packet
+```
+
+---
+
+# The Journey of a Packet (Multi-threaded Version)
+
+```
+Reader Thread
+      │
+      ▼
+Load Balancer Threads
+      │
+      ▼
+Fast Path Worker Threads
+      │
+      ▼
+Output Queue
+      │
+      ▼
+Output Writer
+```
+
+| Thread            | Responsibility           |
+| ----------------- | ------------------------ |
+| Reader            | Reads packets from PCAP  |
+| Load Balancer     | Distributes packets      |
+| Fast Path Workers | Perform DPI processing   |
+| Output Writer     | Writes processed packets |
+
+---
+
+# Deep Dive: Each Component
+
+### PCAP Reader
+
+Responsible for:
+
+* opening PCAP files
+* validating headers
+* reading packet data
+
+---
+
+### Packet Parser
+
+Parses protocol layers:
 
 * Ethernet
 * IPv4
 * TCP
 * UDP
 
-### 🔍 Deep Packet Inspection
+---
 
-Extracts application information using:
+### SNI Extractor
 
-* TLS **Server Name Indication (SNI)**
-* HTTP **Host header**
-* DNS queries
-
-### 🧠 Flow Tracking
-
-Tracks connections using **Five-Tuple identification**
-
-```
-(Source IP, Destination IP, Source Port, Destination Port, Protocol)
-```
-
-### 🚫 Rule-Based Filtering
-
-Traffic can be blocked using:
-
-* IP address
-* Domain name
-* Application type
-
-### 📊 Web Dashboard
-
-Users can:
-
-* Upload PCAP files
-* Configure filtering rules
-* View network traffic statistics
+Extracts domain names from TLS ClientHello messages.
 
 ---
 
-# 🏗️ System Architecture
+### Rule Manager
+
+Applies filtering rules based on:
+
+* IP
+* domain
+* application
+
+---
+
+### Flow Tracker
+
+Tracks connections using the **five-tuple identifier**.
+
+---
+
+# How SNI Extraction Works
 
 ```
-User (Browser)
+ClientHello
+   └── Extensions
+        └── SNI
+             └── www.youtube.com
+```
+
+### TLS Handshake
+
+```
+Client (Browser)                 Server
+      │                             │
+      │ ---- ClientHello ----------►│
+      │      SNI: youtube.com       │
+      │                             │
+      │ ◄---- ServerHello ----------│
+      │                             │
+      │ ==== Encrypted Traffic ==== │
+```
+
+---
+
+# How Blocking Works
+
+| Rule Type   | Example      |
+| ----------- | ------------ |
+| IP          | 192.168.1.50 |
+| Application | YouTube      |
+| Domain      | facebook     |
+
+```
+Packet arrives
+      │
+      ▼
+Check blocked IP
+      │
+      ▼
+Check blocked application
+      │
+      ▼
+Check blocked domain
+      │
+      ▼
+Forward or Drop
+```
+
+---
+
+# System Architecture Diagram
+
+```
+User Browser
       │
       ▼
 Node.js Web Dashboard
@@ -126,176 +408,82 @@ Node.js Web Dashboard
 Python DPI Engine
       │
       ▼
-Packet Parsing + Application Detection
+Packet Parsing
       │
       ▼
-Filtering Rules + Traffic Analysis
+Traffic Classification
+      │
+      ▼
+Filtering + Analysis
 ```
 
 ---
 
-# 🔄 System Workflow
+# Packet Flow Diagram
 
 ```
-Upload PCAP
-     ↓
-Node.js Server
-     ↓
-Run Python DPI Engine
-     ↓
-Read PCAP packets
-     ↓
-Parse Ethernet / IP / TCP / UDP
-     ↓
-Extract TLS SNI / HTTP Host
-     ↓
-Classify application
-     ↓
-Apply filtering rules
-     ↓
-Generate analysis report
-     ↓
-Display results in dashboard
-```
-
----
-
-# 🌐 Network Packet Structure
-
-Every network packet contains multiple layers:
-
-```
-Ethernet Header
-   ↓
-IP Header
-   ↓
-TCP / UDP Header
-   ↓
-Application Payload
-```
-
-Example structure:
-
-```
-┌─────────────────────────────┐
-│ Ethernet Header (MAC)       │
-├─────────────────────────────┤
-│ IP Header (Source/Dest IP)  │
-├─────────────────────────────┤
-│ TCP Header (Ports)          │
-├─────────────────────────────┤
-│ Payload (TLS ClientHello)   │
-└─────────────────────────────┘
+PCAP File
+   │
+   ▼
+Packet Reader
+   │
+   ▼
+Protocol Parser
+   │
+   ▼
+Flow Tracker
+   │
+   ▼
+SNI Extractor
+   │
+   ▼
+Rule Engine
+   │
+   ▼
+Output / Report
 ```
 
 ---
 
-# 🔍 Deep Packet Inspection Process
+# Building and Running
 
-### 1️⃣ Read PCAP File
+### Clone Repository
 
-The engine reads raw packet bytes from a capture file.
-
-```
-Global Header
-Packet Header
-Packet Data
+```bash
+git clone https://github.com/hiteshkumarh/dpi-engine.git
+cd dpi-engine
 ```
 
----
+### Install Dependencies
 
-### 2️⃣ Parse Network Protocols
-
-Each packet is decoded layer by layer to extract:
-
-* Source IP
-* Destination IP
-* Ports
-* Protocol
-
-Supported protocols:
-
-* Ethernet
-* IPv4
-* TCP
-* UDP
-
----
-
-### 3️⃣ Flow Tracking (Five-Tuple)
-
-Packets are grouped into flows using:
-
-```
-(Source IP, Destination IP, Source Port, Destination Port, Protocol)
+```bash
+cd frontend
+npm install
 ```
 
-Example:
+### Start Dashboard
 
-```
-192.168.1.10:54321 → 142.250.185.206:443
-```
-
-All packets belonging to the same connection are tracked together.
-
----
-
-### 4️⃣ TLS SNI Extraction
-
-For HTTPS traffic, the engine inspects the **TLS ClientHello message**.
-
-Example:
-
-```
-ClientHello
- └── SNI: www.youtube.com
+```bash
+npm start
 ```
 
-This allows the system to identify the requested domain before encryption begins.
+or
 
----
+```bash
+node server.js
+```
 
-### 5️⃣ Application Classification
-
-Extracted domains are mapped to application categories.
-
-Example:
+Open:
 
 ```
-youtube.com → YouTube
-facebook.com → Facebook
-github.com → GitHub
+http://localhost:5000
 ```
 
 ---
 
-### 6️⃣ Rule Engine
+# Understanding the Output
 
-Filtering rules can block traffic by:
-
-| Rule Type   | Example      |
-| ----------- | ------------ |
-| IP          | 192.168.1.50 |
-| Application | YouTube      |
-| Domain      | facebook     |
-
-Filtering flow:
-
-```
-Packet arrives
-      ↓
-Check blocked IP
-      ↓
-Check blocked application
-      ↓
-Check blocked domain
-      ↓
-Forward or drop packet
-```
-
----
-
-# 📊 Example Output
+Example report:
 
 ```
 Total Packets: 77
@@ -325,149 +513,11 @@ github.com
 google.com
 ```
 
----
+The report provides insights into:
 
-# 📂 Project Structure
-
-```
-packet_analyzer/
-├── frontend/                  # Node.js Web Dashboard
-│   ├── public/
-│   ├── uploads/
-│   ├── server.js
-│   └── package.json
-│
-├── packet_analyzer_py/        # Python DPI Engine
-│   ├── core/
-│   │   ├── packet_parser.py
-│   │   ├── pcap_reader.py
-│   │   ├── rule_manager.py
-│   │   ├── sni_extractor.py
-│   │   └── types.py
-│   │
-│   └── main.py
-│
-├── test_dpi.pcap
-└── generate_test_pcap.py
-```
-
----
-
-# 🚀 Running the Project
-
-## 1️⃣ Clone Repository
-
-```
-git clone https://github.com/hiteshkumarh/dpi-engine.git
-cd dpi-engine
-```
-
----
-
-## 2️⃣ Install Node Dependencies
-
-```
-cd frontend
-npm install
-```
-
----
-
-## 3️⃣ Start Web Dashboard
-
-```
-npm start
-```
-
-or
-
-```
-node server.js
-```
-
-Open browser:
-
-```
-http://localhost:5000
-```
-
-Upload a `.pcap` file and run traffic analysis.
-
----
-
-# 🖥️ Run DPI Engine via CLI
-
-Basic analysis:
-
-```
-python packet_analyzer_py/main.py test_dpi.pcap output.pcap
-```
-
-With blocking rules:
-
-```
-python packet_analyzer_py/main.py test_dpi.pcap output.pcap \
---block-app YouTube \
---block-domain facebook \
---block-ip 192.168.1.50
-```
-
----
-
-# 🧪 Generate Sample Traffic
-
-```
-python generate_test_pcap.py
-```
-
-This script creates a `.pcap` file containing simulated:
-
-* TLS traffic
-* HTTP requests
-* DNS queries
-
----
-
-# 🧠 Technologies Used
-
-### Backend
-
-* Python
-* Node.js
-* Express.js
-
-### Networking
-
-* TCP/IP Protocol Analysis
-* PCAP Binary Parsing
-* TLS Handshake Inspection
-* Deep Packet Inspection
-
-### Frontend
-
-* HTML
-* CSS
-* JavaScript
-
----
-
-# 📚 Learning Outcomes
-
-This project demonstrates:
-
-* Network protocol parsing
-* TLS handshake analysis
-* Deep Packet Inspection techniques
-* Flow-based network tracking
-* Backend and frontend system integration
-
----
-
-# 👨‍💻 Author
-
-**Hithesh Kumar**
-
-GitHub:
-[https://github.com/hiteshkumarh](https://github.com/hiteshkumarh)
+* traffic distribution
+* application usage
+* blocked connections
+* network behavior
 
 ---
