@@ -54,20 +54,11 @@ Unlike traditional firewalls that only inspect **IP addresses and ports**, DPI e
 ### What Our DPI Engine Does
 
 ```
-User Traffic (PCAP)
-        │
-        ▼
-     DPI Engine
-        │
- ┌───────────────┐
- │ Packet Parsing │
- │ SNI Extraction │
- │ App Detection  │
- │ Rule Filtering │
- └───────────────┘
-        │
-        ▼
-Filtered Traffic + Analysis Report
+User Traffic (PCAP) → [DPI Engine] → Filtered Traffic (PCAP)
+                           ↓
+                    - Identifies apps (YouTube, Facebook, etc.)
+                    - Blocks based on rules
+                    - Generates reports
 ```
 
 ---
