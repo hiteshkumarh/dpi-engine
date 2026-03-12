@@ -1,4 +1,3 @@
----
 # 🛡️ DPI Engine – Deep Packet Inspection System
 
 A **Deep Packet Inspection (DPI) engine** that analyzes network traffic from **PCAP files**, extracts domains from encrypted TLS connections using **SNI inspection**, and applies **rule-based filtering** to identify and block applications.
