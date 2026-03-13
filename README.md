@@ -1,4 +1,25 @@
+# DPI Engine - Deep Packet Inspection System
 
+
+This document explains **everything** about this project - from basic networking concepts to the complete code architecture. After reading this, you should understand exactly how packets flow through the system without needing to read the code.
+
+---
+
+## Table of Contents
+
+1. [What is DPI?](#1-what-is-dpi)
+2. [Networking Background](#2-networking-background)
+3. [Project Overview](#3-project-overview)
+4. [File Structure](#4-file-structure)
+5. [The Journey of a Packet (Simple Version)](#5-the-journey-of-a-packet-simple-version)
+6. [The Journey of a Packet (Multi-threaded Version)](#6-the-journey-of-a-packet-multi-threaded-version)
+7. [Deep Dive: Each Component](#7-deep-dive-each-component)
+8. [How SNI Extraction Works](#8-how-sni-extraction-works)
+9. [How Blocking Works](#9-how-blocking-works)
+10. [Building and Running](#10-building-and-running)
+11. [Understanding the Output](#11-understanding-the-output)
+
+---
 
 ## 1. What is DPI?
 
