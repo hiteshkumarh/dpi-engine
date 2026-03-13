@@ -1567,19 +1567,20 @@ Example workflow:
 4. View traffic analysis results in the dashboard
 
 ---
+
 ---
 
 # 12. Extending the Project
 
-This project can be extended in multiple ways to build a more advanced **network security and traffic analysis system**.
+This project can be extended to support more advanced **network security and traffic analysis features**.
 
 ---
 
-# Add More Application Signatures
+## Add More Application Signatures
 
-Currently, applications are identified using **domain pattern matching**.
+Applications are identified using **domain pattern matching** from extracted **TLS SNI, HTTP Host headers, or DNS queries**.
 
-New applications can easily be added inside:
+New applications can be added in:
 
 ```
 packet_analyzer_py/core/types.py
@@ -1589,15 +1590,19 @@ Example:
 
 ```python
 def sni_to_app_type(sni: str):
+    sni = sni.lower()
+
     if "youtube" in sni:
         return AppType.YOUTUBE
     if "facebook" in sni:
         return AppType.FACEBOOK
     if "twitch" in sni:
         return AppType.TWITCH
+
+    return AppType.UNKNOWN
 ```
 
-This allows the DPI engine to detect additional platforms such as:
+This allows the DPI engine to recognize additional services such as:
 
 * Twitch
 * Netflix
@@ -1607,9 +1612,9 @@ This allows the DPI engine to detect additional platforms such as:
 
 ---
 
-# Add Bandwidth Throttling
+## Add Bandwidth Throttling
 
-Instead of dropping packets, traffic can be **rate-limited**.
+Instead of dropping packets entirely, traffic could be **rate-limited**.
 
 Example idea:
 
@@ -1617,59 +1622,63 @@ Example idea:
 import time
 
 if should_throttle(flow):
-    time.sleep(0.01)  # delay packet
+    time.sleep(0.01)  # delay packet processing
 ```
 
-This would simulate **traffic shaping**, similar to what ISPs do for streaming or P2P traffic.
+This would simulate **traffic shaping**, similar to how ISPs throttle certain types of traffic.
 
 ---
 
-# Real-Time Traffic Dashboard
+## Add Real-Time Statistics Dashboard
 
-The web interface could be extended to show **live statistics**.
+The current dashboard shows results after processing a PCAP file.
+It could be extended to support **live traffic monitoring**.
 
-Possible features:
+Possible improvements:
 
 * Live packet counters
-* Real-time application charts
+* Real-time traffic charts
 * Active connection monitoring
 * Dynamic rule updates
 
-Example architecture:
+Architecture idea:
 
 ```
-DPI Engine → WebSocket → Web Dashboard
+DPI Engine → WebSocket API → Web Dashboard
 ```
 
-The backend could push updates every second to the UI.
+The backend could periodically send statistics updates to the UI.
 
 ---
 
-# Add QUIC / HTTP3 Support
+## Add QUIC / HTTP3 Support
 
-Modern applications like **YouTube and Google services** increasingly use **QUIC (HTTP/3)**.
+Many modern applications (YouTube, Google services, etc.) use **QUIC (HTTP/3)**.
 
-Characteristics:
+Characteristics of QUIC:
 
-* Runs over **UDP port 443**
-* Uses **TLS 1.3 encryption**
-* SNI is contained inside QUIC handshake packets
+* Uses **UDP on port 443**
+* TLS 1.3 encryption
+* Different handshake structure compared to TLS over TCP
 
 Supporting QUIC would require:
 
 * UDP packet inspection
-* QUIC Initial packet parsing
-* TLS extension extraction
+* Parsing QUIC Initial packets
+* Extracting TLS extensions from QUIC handshake
 
 ---
 
-# Persistent Rule Storage
+## Add Persistent Rule Storage
 
-Currently, rules are passed via command line or UI input.
+Currently rules are passed through:
 
-The system could support **persistent rule storage**.
+* command line arguments
+* the web dashboard interface
 
-Example idea:
+Rules could be stored in a configuration file.
+
+Example:
 
 ```
 rules.json
@@ -1677,7 +1686,7 @@ rules.json
 
 Example content:
 
-```
+```json
 {
   "blocked_apps": ["youtube", "tiktok"],
   "blocked_domains": ["facebook.com"],
@@ -1685,29 +1694,17 @@ Example content:
 }
 ```
 
-The DPI engine would load this file at startup.
-
----
-
-# Possible Advanced Features
-
-Future improvements could include:
-
-* **Machine Learning traffic classification**
-* **Anomaly detection**
-* **Intrusion detection system (IDS) integration**
-* **Packet visualization dashboards**
-* **Geo-IP traffic analysis**
+The DPI engine could load this configuration during startup.
 
 ---
 
 # Summary
 
-This DPI engine demonstrates several important networking and security concepts:
+This project demonstrates several important networking and security concepts.
 
 ### Network Protocol Parsing
 
-Understanding how packets are structured across layers:
+Understanding how packets are structured across multiple layers:
 
 * Ethernet
 * IP
@@ -1716,37 +1713,55 @@ Understanding how packets are structured across layers:
 
 ### Deep Packet Inspection
 
-Extracting application information from network traffic, including encrypted connections.
+Inspecting packet payloads to extract application-level information such as:
+
+* TLS SNI
+* HTTP Host headers
+* DNS queries
 
 ### Flow Tracking
 
-Grouping packets using the **five-tuple** to track network sessions.
+Grouping packets using the **five-tuple**:
+
+```
+(src_ip, dst_ip, src_port, dst_port, protocol)
+```
+
+This allows the engine to track complete network connections.
 
 ### Rule-Based Traffic Filtering
 
-Blocking traffic based on:
+Traffic can be filtered based on:
 
 * IP addresses
-* Applications
-* Domain names
+* application types
+* domain names
 
 ### Web-Based Traffic Analysis
 
-A dashboard interface allows users to upload PCAP files and visualize DPI results.
+A web dashboard provides:
+
+* PCAP upload
+* traffic statistics
+* application detection results
+* DPI engine logs
 
 ---
 
 # Key Insight
 
-Even though HTTPS encrypts application data, the **TLS handshake exposes the destination domain through SNI (Server Name Indication)**.
+Even though HTTPS encrypts application data, the **TLS handshake exposes the destination domain through the SNI (Server Name Indication) field**.
 
 This allows network operators to:
 
-* Identify applications
-* Monitor traffic usage
-* Apply filtering policies
+* identify applications
+* monitor network usage
+* enforce filtering policies
 
-without decrypting the actual payload.
+without decrypting the encrypted payload.
+
+---
+
 
 
 
